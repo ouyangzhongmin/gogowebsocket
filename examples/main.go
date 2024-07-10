@@ -46,11 +46,11 @@ func main() {
 	logger.Log.Println("Shutdown Server ...")
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
+	//通知ws断开所有连接
+	handler.Shutdown()
 	if err := srv.Shutdown(context.Background()); err != nil {
 		logger.Log.Fatal("Server Shutdown err:", err)
 	}
-	//通知ws断开所有连接
-	handler.Shutdown()
 	//catching ctx.Done(). timeout of 2 seconds.
 	select {
 	case <-ctx.Done():

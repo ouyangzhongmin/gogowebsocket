@@ -48,7 +48,7 @@ type WS struct {
 	// Unregister requests from clients.
 	unregister chan *Client
 
-	shutdown chan int
+	shutdown chan struct{}
 
 	grpcServer *grpcServer
 	serverIp   string
@@ -65,6 +65,7 @@ func New(appId, rpcPort string, r *redis.Client) *WS {
 		receiveQueue: make(chan *WSBody, 20),
 		register:     make(chan *Client),
 		unregister:   make(chan *Client),
+		shutdown:     make(chan struct{}),
 		clients:      make(map[string]*Client),
 		handlers:     make([]MessageHandler, 0),
 	}
@@ -97,7 +98,6 @@ func (ws *WS) run() {
 			if ws.grpcServer != nil {
 				ws.grpcServer.Stop()
 			}
-
 			return
 		case client := <-ws.register:
 			//注册新的客户端连接
@@ -334,5 +334,5 @@ func (ws *WS) ForceDisconnect(clientId string) error {
 // 以防止优雅重启过程中再收到新数据
 func (ws *WS) Shutdown() {
 	logger.Println("Shutdown ws")
-	ws.shutdown <- 1
+	ws.shutdown <- struct{}{}
 }

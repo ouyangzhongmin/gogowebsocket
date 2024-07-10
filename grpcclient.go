@@ -16,17 +16,16 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// link::https://github.com/grpc/grpc-go/blob/master/examples/helloworld/greeter_client/main.go
 func GrpcSendMsg(server serverInfo, msg *WSBody, broadcast int) error {
-	// Set up a connection to the server.
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%s", server.ServerIP, server.Port), grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	conn, err := grpc.NewClient(fmt.Sprintf("%s:%s", server.ServerIP, server.Port), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		logger.Errorln("连接失败", server.ServerIP, server.Port, err)
 		return err
 	}
 	defer conn.Close()
 
-	c := protobuf.NewAccServerClient(conn)
+	c := protobuf.NewWSServerClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 	//转发的消息的body都需要转换为string, protobuf的any类型不能完全适用任意类型的数据
@@ -57,16 +56,17 @@ func GrpcSendMsg(server serverInfo, msg *WSBody, broadcast int) error {
 	logger.Debugln("rpc.SendMsg 成功")
 	return nil
 }
+
 func GrpcForceDisconnect(server serverInfo, clientId string) error {
-	// Set up a connection to the server.
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%s", server.ServerIP, server.Port), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	
+	conn, err := grpc.NewClient(fmt.Sprintf("%s:%s", server.ServerIP, server.Port), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		logger.Errorln("连接失败", server.ServerIP, server.Port, err)
 		return err
 	}
 	defer conn.Close()
 
-	c := protobuf.NewAccServerClient(conn)
+	c := protobuf.NewWSServerClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 	req := protobuf.ForceDisconnectReq{

@@ -12,11 +12,9 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron"
-	"google.golang.org/grpc"
-	"google.golang.org/protobuf/proto"
-
 	"github.com/ouyangzhongmin/gogowebsocket/logger"
 	"github.com/ouyangzhongmin/gogowebsocket/protobuf"
+	"google.golang.org/grpc"
 )
 
 type serverInfo struct {
@@ -33,18 +31,8 @@ func (s serverInfo) isLocal(s2 serverInfo) bool {
 }
 
 type server struct {
-	protobuf.UnimplementedAccServerServer
+	protobuf.UnimplementedWSServerServer
 	ws *WS
-}
-
-func setErr(rsp proto.Message, code uint32, message string) {
-
-	switch v := rsp.(type) {
-	case *protobuf.SendMsgRsp:
-		v.Errcode = code
-		v.ErrMsg = message
-	default:
-	}
 }
 
 // 给用户发消息
@@ -72,12 +60,14 @@ func (s *server) SendMsg(c context.Context, req *protobuf.SendMsgReq) (rsp *prot
 	if req.Broadcast == 1 {
 		err = s.ws.BroadcastLocal(msg, nil)
 		if err != nil {
-			setErr(rsp, 1, err.Error())
+			rsp.Errcode = 1
+			rsp.ErrMsg = err.Error()
 		}
 	} else {
 		err = s.ws.SendLocal(req.Clientid, msg)
 		if err != nil {
-			setErr(rsp, 1, err.Error())
+			rsp.Errcode = 1
+			rsp.ErrMsg = err.Error()
 		}
 	}
 	logger.Debugln("grpc_response 给本机用户发消息", rsp.String())
@@ -90,7 +80,8 @@ func (s *server) ForceDisconnect(c context.Context, req *protobuf.ForceDisconnec
 	if req.Clientid != "" {
 		err = s.ws.ForceDisconnect(req.Clientid)
 		if err != nil {
-			setErr(rsp, 1, err.Error())
+			rsp.Errcode = 1
+			rsp.ErrMsg = err.Error()
 		}
 	}
 	return
@@ -128,7 +119,6 @@ func newGrpcServer(ws *WS, serverInfo *serverInfo) *grpcServer {
 }
 
 // rpc server
-// link::https://github.com/grpc/grpc-go/blob/master/examples/helloworld/greeter_server/main.go
 func (s *grpcServer) Start() {
 	fmt.Println("rpc server 启动", s.serverInfo.ServerIP, s.serverInfo.Port)
 	lis, err := net.Listen("tcp", ":"+s.serverInfo.Port)
@@ -136,7 +126,7 @@ func (s *grpcServer) Start() {
 		logger.Fatalf("failed to listen: %v", err)
 	}
 	sv := grpc.NewServer()
-	protobuf.RegisterAccServerServer(sv, &server{ws: s.Ws})
+	protobuf.RegisterWSServerServer(sv, &server{ws: s.Ws})
 	//记录到缓存
 	s.pushToCache()
 	if err := sv.Serve(lis); err != nil {
