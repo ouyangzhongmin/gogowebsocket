@@ -10,12 +10,28 @@ package protobuf;
 
 
 service WSServer {
+    // 健康检查
+    rpc CheckHealth (CheckHealthReq) returns (CheckHealthRsp) {
+    }
     // 发送消息
-    rpc SendMsg (SendMsgReq) returns (SendMsgRsp) {
+    rpc SendMsg (SendMsgReq) returns (OkRsp) {
     }
     // 强制断开连接
-    rpc ForceDisconnect (ForceDisconnectReq) returns (ForceDisconnectRsp) {
+    rpc ForceDisconnect (ForceDisconnectReq) returns (OkRsp) {
     }
+}
+
+message CheckHealthReq {
+	int64 ts = 1 ;
+}
+
+message CheckHealthRsp {
+	int64 ts = 1 ;
+}
+
+message OkRsp {
+    uint32 errcode = 1;
+    string errMsg = 2;
 }
 
 // 发送消息
@@ -29,16 +45,7 @@ message SendMsgReq {
     string body = 6;
 }
 
-message SendMsgRsp {
-    uint32 errcode = 1;
-    string errMsg = 2;
-}
-
 message ForceDisconnectReq {
     string clientid = 1;
 }
 
-message ForceDisconnectRsp {
-    uint32 errcode = 1;
-    string errMsg = 2;
-}

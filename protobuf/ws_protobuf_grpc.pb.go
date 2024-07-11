@@ -22,10 +22,12 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type WSServerClient interface {
+	// 健康检查
+	CheckHealth(ctx context.Context, in *CheckHealthReq, opts ...grpc.CallOption) (*CheckHealthRsp, error)
 	// 发送消息
-	SendMsg(ctx context.Context, in *SendMsgReq, opts ...grpc.CallOption) (*SendMsgRsp, error)
+	SendMsg(ctx context.Context, in *SendMsgReq, opts ...grpc.CallOption) (*OkRsp, error)
 	// 强制断开连接
-	ForceDisconnect(ctx context.Context, in *ForceDisconnectReq, opts ...grpc.CallOption) (*ForceDisconnectRsp, error)
+	ForceDisconnect(ctx context.Context, in *ForceDisconnectReq, opts ...grpc.CallOption) (*OkRsp, error)
 }
 
 type wSServerClient struct {
@@ -36,8 +38,17 @@ func NewWSServerClient(cc grpc.ClientConnInterface) WSServerClient {
 	return &wSServerClient{cc}
 }
 
-func (c *wSServerClient) SendMsg(ctx context.Context, in *SendMsgReq, opts ...grpc.CallOption) (*SendMsgRsp, error) {
-	out := new(SendMsgRsp)
+func (c *wSServerClient) CheckHealth(ctx context.Context, in *CheckHealthReq, opts ...grpc.CallOption) (*CheckHealthRsp, error) {
+	out := new(CheckHealthRsp)
+	err := c.cc.Invoke(ctx, "/protobuf.WSServer/CheckHealth", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *wSServerClient) SendMsg(ctx context.Context, in *SendMsgReq, opts ...grpc.CallOption) (*OkRsp, error) {
+	out := new(OkRsp)
 	err := c.cc.Invoke(ctx, "/protobuf.WSServer/SendMsg", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -45,8 +56,8 @@ func (c *wSServerClient) SendMsg(ctx context.Context, in *SendMsgReq, opts ...gr
 	return out, nil
 }
 
-func (c *wSServerClient) ForceDisconnect(ctx context.Context, in *ForceDisconnectReq, opts ...grpc.CallOption) (*ForceDisconnectRsp, error) {
-	out := new(ForceDisconnectRsp)
+func (c *wSServerClient) ForceDisconnect(ctx context.Context, in *ForceDisconnectReq, opts ...grpc.CallOption) (*OkRsp, error) {
+	out := new(OkRsp)
 	err := c.cc.Invoke(ctx, "/protobuf.WSServer/ForceDisconnect", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -58,10 +69,12 @@ func (c *wSServerClient) ForceDisconnect(ctx context.Context, in *ForceDisconnec
 // All implementations must embed UnimplementedWSServerServer
 // for forward compatibility
 type WSServerServer interface {
+	// 健康检查
+	CheckHealth(context.Context, *CheckHealthReq) (*CheckHealthRsp, error)
 	// 发送消息
-	SendMsg(context.Context, *SendMsgReq) (*SendMsgRsp, error)
+	SendMsg(context.Context, *SendMsgReq) (*OkRsp, error)
 	// 强制断开连接
-	ForceDisconnect(context.Context, *ForceDisconnectReq) (*ForceDisconnectRsp, error)
+	ForceDisconnect(context.Context, *ForceDisconnectReq) (*OkRsp, error)
 	mustEmbedUnimplementedWSServerServer()
 }
 
@@ -69,10 +82,13 @@ type WSServerServer interface {
 type UnimplementedWSServerServer struct {
 }
 
-func (UnimplementedWSServerServer) SendMsg(context.Context, *SendMsgReq) (*SendMsgRsp, error) {
+func (UnimplementedWSServerServer) CheckHealth(context.Context, *CheckHealthReq) (*CheckHealthRsp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckHealth not implemented")
+}
+func (UnimplementedWSServerServer) SendMsg(context.Context, *SendMsgReq) (*OkRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendMsg not implemented")
 }
-func (UnimplementedWSServerServer) ForceDisconnect(context.Context, *ForceDisconnectReq) (*ForceDisconnectRsp, error) {
+func (UnimplementedWSServerServer) ForceDisconnect(context.Context, *ForceDisconnectReq) (*OkRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ForceDisconnect not implemented")
 }
 func (UnimplementedWSServerServer) mustEmbedUnimplementedWSServerServer() {}
@@ -86,6 +102,24 @@ type UnsafeWSServerServer interface {
 
 func RegisterWSServerServer(s grpc.ServiceRegistrar, srv WSServerServer) {
 	s.RegisterService(&WSServer_ServiceDesc, srv)
+}
+
+func _WSServer_CheckHealth_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckHealthReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WSServerServer).CheckHealth(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/protobuf.WSServer/CheckHealth",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WSServerServer).CheckHealth(ctx, req.(*CheckHealthReq))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _WSServer_SendMsg_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -131,6 +165,10 @@ var WSServer_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "protobuf.WSServer",
 	HandlerType: (*WSServerServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CheckHealth",
+			Handler:    _WSServer_CheckHealth_Handler,
+		},
 		{
 			MethodName: "SendMsg",
 			Handler:    _WSServer_SendMsg_Handler,

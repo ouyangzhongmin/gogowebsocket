@@ -11,9 +11,9 @@ import (
 )
 
 func OnWSHandler(c *gin.Context) {
-	production := c.GetHeader("X-ZY-PRODUCTION-EXT")
-	deviceId := c.GetHeader("X-ZY-DEVICEID")
-	uid, _ := strconv.ParseUint(c.GetHeader("X-ZY-USERID"), 10, 64)
+	production := c.Query("X-ZY-PRODUCTION-EXT")
+	deviceId := c.Query("X-ZY-DEVICEID")
+	uid, _ := strconv.ParseUint(c.Query("X-ZY-USERID"), 10, 64)
 	if production == "" {
 		GinErrorWithMsgP(c, 1, "X-ZY-Production-Ext不允许为空")
 		return

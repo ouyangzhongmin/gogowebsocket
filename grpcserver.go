@@ -35,12 +35,18 @@ type server struct {
 	ws *WS
 }
 
+// 健康检查
+func (s *server) CheckHealth(c context.Context, req *protobuf.CheckHealthReq) (rsp *protobuf.CheckHealthRsp, err error) {
+	rsp = &protobuf.CheckHealthRsp{Ts: time.Now().Unix()}
+	return
+}
+
 // 给用户发消息
-func (s *server) SendMsg(c context.Context, req *protobuf.SendMsgReq) (rsp *protobuf.SendMsgRsp, err error) {
+func (s *server) SendMsg(c context.Context, req *protobuf.SendMsgReq) (rsp *protobuf.OkRsp, err error) {
 
 	fmt.Println("grpc_request 给本机用户发消息", req.String())
 
-	rsp = &protobuf.SendMsgRsp{}
+	rsp = &protobuf.OkRsp{}
 	//body, err := anytop(req.Body)
 	//if err != nil {
 	//	return rsp, errors.New("anytop err:" + err.Error())
@@ -75,8 +81,8 @@ func (s *server) SendMsg(c context.Context, req *protobuf.SendMsgReq) (rsp *prot
 }
 
 // 给用户发消息
-func (s *server) ForceDisconnect(c context.Context, req *protobuf.ForceDisconnectReq) (rsp *protobuf.ForceDisconnectRsp, err error) {
-	rsp = &protobuf.ForceDisconnectRsp{}
+func (s *server) ForceDisconnect(c context.Context, req *protobuf.ForceDisconnectReq) (rsp *protobuf.OkRsp, err error) {
+	rsp = &protobuf.OkRsp{}
 	if req.Clientid != "" {
 		err = s.ws.ForceDisconnect(req.Clientid)
 		if err != nil {
