@@ -1,6 +1,3 @@
-//Copyright The ZHIYUNCo.All rights reserved.
-//Created by admin at2022/9/20.
-
 package gogowebsocket
 
 import (

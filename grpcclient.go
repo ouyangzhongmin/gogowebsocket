@@ -1,6 +1,3 @@
-//Copyright The ZHIYUNCo.All rights reserved.
-//Created by admin at2024/7/5.
-
 package gogowebsocket
 
 import (
@@ -20,7 +17,7 @@ func GrpcSendMsg(server serverInfo, msg *WSBody, broadcast int) error {
 
 	conn, err := grpc.NewClient(fmt.Sprintf("%s:%s", server.ServerIP, server.Port), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		logger.Errorln("连接失败", server.ServerIP, server.Port, err)
+		logger.Errorln("grpc连接失败", server.ServerIP, server.Port, err)
 		return err
 	}
 	defer conn.Close()
@@ -29,7 +26,7 @@ func GrpcSendMsg(server serverInfo, msg *WSBody, broadcast int) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 	//转发的消息的body都需要转换为string, protobuf的any类型不能完全适用任意类型的数据
-	bb, err := convertSendBody(msg.BodyType, msg.Body)
+	body, err := convertSendBody(msg.BodyType, msg.Body)
 	if err != nil {
 		logger.Errorln("body marshal err::", err)
 		return err
@@ -40,7 +37,7 @@ func GrpcSendMsg(server serverInfo, msg *WSBody, broadcast int) error {
 		BodyType:   int32(msg.BodyType),
 		Queue:      int32(msg.Queue),
 		Broadcast:  int32(broadcast),
-		Body:       string(bb),
+		Body:       body,
 	}
 	rsp, err := c.SendMsg(ctx, &req)
 	if err != nil {
@@ -58,10 +55,10 @@ func GrpcSendMsg(server serverInfo, msg *WSBody, broadcast int) error {
 }
 
 func GrpcForceDisconnect(server serverInfo, clientId string) error {
-	
+
 	conn, err := grpc.NewClient(fmt.Sprintf("%s:%s", server.ServerIP, server.Port), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		logger.Errorln("连接失败", server.ServerIP, server.Port, err)
+		logger.Errorln("grpc连接失败", server.ServerIP, server.Port, err)
 		return err
 	}
 	defer conn.Close()

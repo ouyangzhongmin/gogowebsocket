@@ -1,23 +1,17 @@
-//Copyright The ZHIYUNCo.All rights reserved.
-//Created by admin at2024/7/10.
-
 package router
 
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/ouyangzhongmin/gogowebsocket/examples/handler"
-	"github.com/ouyangzhongmin/gogowebsocket/logger"
 	"net/http"
 )
 
 func InitRouter() *gin.Engine {
 	gin.SetMode(gin.DebugMode)
 	r := gin.Default()
-
-	//初始化业务层的故事
+	
 	handler.InitServices()
 
-	//初始化路由
 	initRouter(r)
 	return r
 }
@@ -25,26 +19,13 @@ func InitRouter() *gin.Engine {
 func initRouter(r *gin.Engine) {
 	v1 := r.Group("/v1")
 	{
-		v1.Any("/ws", Cors(nil), handler.OnWSHandler)
+		v1.Any("/ws", Cors(), handler.OnWSHandler)
 	}
 }
 
-func Cors(allowOrigins []string) gin.HandlerFunc {
+func Cors() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("origin")
-		if allowOrigins != nil && len(allowOrigins) > 0 {
-			hasFind := false
-			for _, v := range allowOrigins {
-				if v == origin {
-					hasFind = true
-					break
-				}
-			}
-			if !hasFind {
-				logger.Warnln("不支持的跨域请求：", origin)
-				origin = ""
-			}
-		}
 		if origin != "" {
 			//接收客户端发送的origin （重要！）
 			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
@@ -70,7 +51,6 @@ func Cors(allowOrigins []string) gin.HandlerFunc {
 				return
 			}
 		}
-
 		c.Next()
 	}
 }

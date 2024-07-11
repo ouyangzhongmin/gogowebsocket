@@ -1,6 +1,3 @@
-//Copyright The ZHIYUNCo.All rights reserved.
-//Created by admin at2024/7/5.
-
 package gogowebsocket
 
 import (
@@ -43,9 +40,6 @@ func (s *server) CheckHealth(c context.Context, req *protobuf.CheckHealthReq) (r
 
 // 给用户发消息
 func (s *server) SendMsg(c context.Context, req *protobuf.SendMsgReq) (rsp *protobuf.OkRsp, err error) {
-
-	fmt.Println("grpc_request 给本机用户发消息", req.String())
-
 	rsp = &protobuf.OkRsp{}
 	//body, err := anytop(req.Body)
 	//if err != nil {
@@ -76,11 +70,11 @@ func (s *server) SendMsg(c context.Context, req *protobuf.SendMsgReq) (rsp *prot
 			rsp.ErrMsg = err.Error()
 		}
 	}
-	logger.Debugln("grpc_response 给本机用户发消息", rsp.String())
+
 	return
 }
 
-// 给用户发消息
+// 强制断开一个连接
 func (s *server) ForceDisconnect(c context.Context, req *protobuf.ForceDisconnectReq) (rsp *protobuf.OkRsp, err error) {
 	rsp = &protobuf.OkRsp{}
 	if req.Clientid != "" {
@@ -102,10 +96,6 @@ func (s *server) convertReceiveBody(bodyType int, body string) (interface{}, err
 	}
 	var data interface{}
 	err := json.Unmarshal([]byte(body), &data)
-	//if bodyType == BODY_TYPE_TEXT {
-	//	b, _ := json.Marshal(v)
-	//	var txt string
-	//}
 	return data, err
 }
 
@@ -124,9 +114,9 @@ func newGrpcServer(ws *WS, serverInfo *serverInfo) *grpcServer {
 	}
 }
 
-// rpc server
+// 开启grpc server
 func (s *grpcServer) Start() {
-	fmt.Println("rpc server 启动", s.serverInfo.ServerIP, s.serverInfo.Port)
+	fmt.Println("grpc.server 启动: ", s.serverInfo.ServerIP, s.serverInfo.Port)
 	lis, err := net.Listen("tcp", ":"+s.serverInfo.Port)
 	if err != nil {
 		logger.Fatalf("failed to listen: %v", err)
@@ -134,7 +124,7 @@ func (s *grpcServer) Start() {
 	sv := grpc.NewServer()
 	protobuf.RegisterWSServerServer(sv, &server{ws: s.Ws})
 	//记录到缓存
-	s.pushToCache()
+	s.timerPushToCache()
 	if err := sv.Serve(lis); err != nil {
 		s.Ws.cache.removeServerInfo(s.Ws.appId, s.serverInfo)
 		logger.Fatalf("failed to serve: %v", err)
@@ -149,16 +139,16 @@ func (s *grpcServer) Stop() {
 	}
 }
 
-func (s *grpcServer) pushToCache() {
+func (s *grpcServer) timerPushToCache() {
 	s.doPushToCache()
-	//开启定时器
+	//开启定时器 每隔30S更新在线
 	s.scheduler = gocron.NewScheduler(time.Local)
 	s.scheduler.Every(30).Seconds().Do(s.doPushToCache)
 	s.scheduler.StartAsync()
 
 	servers, err := s.Ws.cache.getServerInfos(s.Ws.appId)
 	if err != nil {
-		logger.Errorln("getServerInfos err:", err)
+		logger.Errorln("cache.getServerInfos err:", err)
 	}
 	logger.Println("grpc servers :::", servers)
 }

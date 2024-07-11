@@ -1,7 +1,3 @@
-// Copyright 2013 The Gorilla WebSocket Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
 package gogowebsocket
 
 import (
@@ -159,8 +155,6 @@ func (c *Client) Send(msg *WSBody) error {
 		close(c.send)
 		c.Close()
 		c.ws.unregister <- c
-		//是否会有线程安全问题？
-		//delete(c.ws.clients, c.GetClientId())
 	}
 	return nil
 }

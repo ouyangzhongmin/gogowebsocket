@@ -49,7 +49,7 @@ function createWebsocket(userInfo) {
     log = document.getElementById("log")
     document.getElementById("form").onsubmit = onsubmit;
     if (window["WebSocket"]) {
-        conn = new WebSocket("ws://localhost:15800/v1/ws?X-ZY-USERID="+user.uid+"&X-ZY-PRODUCTION-EXT="+user.production+"&X-ZY-DEVICEID="+user.deviceId);
+        conn = new WebSocket("ws://localhost:15800/v1/ws?uid="+user.uid+"&production="+user.production+"&deviceId="+user.deviceId);
         conn.onclose = function (evt) {
             var item = document.createElement("div");
             item.innerHTML = "<b>Connection closed.</b>";

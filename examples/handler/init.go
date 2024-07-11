@@ -1,6 +1,3 @@
-// Copyright The ZHIYUN Co. All rights reserved.
-// Created by oyzm at 2020/10/26.
-
 package handler
 
 import (

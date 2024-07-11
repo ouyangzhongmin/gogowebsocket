@@ -171,7 +171,6 @@ func (x *OkRsp) GetErrMsg() string {
 	return ""
 }
 
-// 发送消息
 type SendMsgReq struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

@@ -1,11 +1,10 @@
-//基于logrus封装的log打印
 package logger
 
 import (
 	"log"
 	"os"
 
-	logrus "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 var Log = logrus.StandardLogger()
@@ -33,8 +32,8 @@ var (
 	Fatalf     = Log.Fatalf
 )
 
-//var Log = log.New(os.Stderr, "", log.LstdFlags)
-//"panic","fatal","error","warn","info","debug","trace"
+// var Log = log.New(os.Stderr, "", log.LstdFlags)
+// "panic","fatal","error","warn","info","debug","trace"
 type LogConf struct {
 	FileName     string
 	Level        string

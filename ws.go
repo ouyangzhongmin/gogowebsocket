@@ -1,18 +1,12 @@
-// Copyright 2013 The Gorilla WebSocket Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
 package gogowebsocket
 
 import (
 	"errors"
 	"fmt"
-	"net/http"
-	"sync"
-
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/websocket"
 	"github.com/ouyangzhongmin/gogowebsocket/logger"
+	"net/http"
 )
 
 const (
@@ -32,14 +26,11 @@ type MessageHandler func(*WS, *WSBody)
 
 type EventHandler func(*Client, string)
 
-// Hub maintains the set of active clients and broadcasts messages to the
-// clients.
 type WS struct {
 	appId string
-	// Registered clients.
+	// 连接的clients.
 	clients map[string]*Client
-	mutx    sync.Mutex
-	// Inbound messages from the clients.
+	// 用于队列发送消息.
 	receiveQueue chan *WSBody
 
 	// Register requests from the clients.
@@ -86,12 +77,12 @@ func (ws *WS) run() {
 		select {
 		case <-ws.shutdown:
 			//退出程序, 断开所有连接
-			logger.Println("收到退出命名, 断开所有连接")
+			logger.Println("退出断开所有连接")
 			ws.cache.removeServerInfo(ws.appId, ws.grpcServer.serverInfo)
 			for id := range ws.clients {
 				c := ws.clients[id]
 				c.Close()
-				ws.cache.removeClientInfo(ws.appId, id)
+				c.removeCache()
 				//close(client.send)
 			}
 			ws.clients = make(map[string]*Client)
@@ -106,7 +97,7 @@ func (ws *WS) run() {
 			c := ws.clients[client.GetClientId()]
 			if c != nil {
 				//有旧的连接还在，关闭掉
-				logger.Infoln("本服务器断开重复连接:", client.GetClientId())
+				logger.Infoln("断开重复的连接:", client.GetClientId())
 				c.Close()
 			}
 			//检测缓存中记录的连接信息
@@ -186,7 +177,7 @@ func (ws *WS) RegisterEventHandler(handler EventHandler) {
 func (ws *WS) postEventHandler(client *Client, event string) {
 	defer func() {
 		if err := recover(); err != nil {
-			logger.Errorln("panic err::", err)
+			logger.Errorln("postEventHandler.panic err::", err)
 		}
 	}()
 	if ws.eventHandler != nil {
@@ -226,11 +217,11 @@ func (ws *WS) Send(toClientId string, msg *WSBody) error {
 		} else {
 			return errors.New("设备连接已断开:" + info.toString())
 		}
-		//return errors.New(fmt.Sprintf("Send err: 对方[%s]已断开连接", toClientId))
 	}
 	return nil
 }
 
+// 多个连接发送数据
 func (ws *WS) SendMore(toClients []string, msg *WSBody) error {
 	if len(toClients) <= 0 {
 		return errors.New("send can't sendTo <= 0！")
@@ -300,6 +291,7 @@ func (ws *WS) Broadcast(msg *WSBody, ignoreIds map[string]bool) error {
 	return nil
 }
 
+// 给连接返回错误码
 func (ws *WS) Error(toClientId string, errcode int, errmsg string) error {
 	errMsg := &WSBody{
 		ProtocolId: ID_ERROR,
@@ -310,14 +302,6 @@ func (ws *WS) Error(toClientId string, errcode int, errmsg string) error {
 		},
 	}
 	logger.Errorln("Reponse client Err:", toClientId, errcode, errmsg)
-	//if client, ok := ws.clients[toClientId]; ok {
-	//	err := client.Send(errMsg)
-	//	if err != nil {
-	//		return err
-	//	}
-	//} else {
-	//	return errors.New("发送失败，连接已断开")
-	//}
 	return ws.Send(toClientId, errMsg)
 }
 

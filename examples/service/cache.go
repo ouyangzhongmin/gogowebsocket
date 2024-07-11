@@ -1,6 +1,3 @@
-//Copyright The ZHIYUNCo.All rights reserved.
-//Created by admin at2024/7/5.
-
 package service
 
 import (
@@ -13,7 +10,7 @@ import (
 )
 
 const CACHE_HASH_KEY = "zp_wsmap_%s"
-const CACHE_DURATION = 60 * 60 * 24 * 20 //10天
+const CACHE_DURATION = 60 * 60 * 24 * 20 //20天
 
 type cache struct {
 	r *redis.Client
@@ -55,7 +52,7 @@ func (c *cache) removeUserClientID(userKey string, clientId string) error {
 	return cmd.Err()
 }
 
-// 返回全部的服务器列表
+// 返回全部的连接id列表
 func (c *cache) getUserClientIDs(userKey string) ([]string, error) {
 	if c.r == nil {
 		return nil, errors.New("redis未初始化")

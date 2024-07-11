@@ -1,6 +1,3 @@
-//Copyright The ZHIYUNCo.All rights reserved.
-//Created by admin at2022/9/20.
-
 package handler
 
 import (
@@ -11,11 +8,11 @@ import (
 )
 
 func OnWSHandler(c *gin.Context) {
-	production := c.Query("X-ZY-PRODUCTION-EXT")
-	deviceId := c.Query("X-ZY-DEVICEID")
-	uid, _ := strconv.ParseUint(c.Query("X-ZY-USERID"), 10, 64)
+	production := c.Query("production")
+	deviceId := c.Query("deviceId")
+	uid, _ := strconv.ParseUint(c.Query("uid"), 10, 64)
 	if production == "" {
-		GinErrorWithMsgP(c, 1, "X-ZY-Production-Ext不允许为空")
+		GinErrorWithMsgP(c, 1, "production不允许为空")
 		return
 	}
 	logger.Println("用户发起ws连接：", production, uid)

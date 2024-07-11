@@ -1,6 +1,3 @@
-//Copyright The ZHIYUNCo.All rights reserved.
-//Created by admin at2022/9/20.
-
 package service
 
 import (
@@ -26,7 +23,7 @@ type WSUserInfo struct {
 
 func (u *WSUserInfo) GetClientID() string {
 	if u.clientid == "" {
-		//为了支持多设备同时连接在线，这里把client_id里包含设备的id， 发送消息给用户时候则通过映射关系保存到redis内
+		//为了支持多设备同时连接在线，这里把clientid里包含deviceId， 映射关系保存到redis内
 		u.clientid = fmt.Sprintf("%s_%d_%s", u.Production, u.UserId, u.DeviceId)
 	}
 	return u.clientid
@@ -60,7 +57,7 @@ func (s *Service) Shutdown() {
 
 func (s *Service) messageHandler(ws *gogowebsocket.WS, msg *gogowebsocket.WSBody) {
 	str, _ := msg.BodyToString()
-	logger.Println("测试用ws转发：", msg.ProtocolId, str)
+	logger.Println("测试用ws广播：", msg.ProtocolId, str)
 	err := ws.Broadcast(msg, nil)
 	if err != nil {
 		logger.Println("测试用ws转发err：", err)
@@ -76,7 +73,7 @@ func (s *Service) eventHandler(client *gogowebsocket.Client, event string) {
 		clientId := u.GetClientID()
 		err := s.cache.putUserClientID(userKey, clientId)
 		if err != nil {
-			logger.Errorln("cache.putUserClient err::", err)
+			logger.Errorln("cache.putUserClientID err::", err)
 		}
 	} else if event == gogowebsocket.EVENT_UNREGISTER {
 		//断开了连接删除掉缓存的数据

@@ -1,6 +1,3 @@
-//Copyright The ZHIYUNCo.All rights reserved.
-//Created by admin at2024/7/10.
-
 package model
 
 type WsUserData struct {

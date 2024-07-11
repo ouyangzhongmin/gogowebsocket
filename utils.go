@@ -1,10 +1,3 @@
-/**
- * Created by GoLand.
- * User: link1st
- * Date: 2019-07-25
- * Time: 17:27
- */
-
 package gogowebsocket
 
 import (
@@ -16,10 +9,6 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-// GetServerIp
-// 问题：我在本地多网卡机器上，运行分布式场景，此函数返回的ip有误导致rpc连接失败。 遂google结果如下：
-// 1、https://www.jianshu.com/p/301aabc06972
-// 2、https://www.cnblogs.com/chaselogs/p/11301940.html
 func GetServerIp() string {
 	ip, err := externalIP()
 	if err != nil {
