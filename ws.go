@@ -27,9 +27,8 @@ type MessageHandler func(*WS, *WSBody)
 type EventHandler func(*Client, string)
 
 type WS struct {
-	appId string
-	// 连接的clients.
-	clients map[string]*Client
+	appId      string
+	clientsMgr *clientsMgr
 	// 用于队列发送消息.
 	receiveQueue chan *WSBody
 
@@ -57,7 +56,7 @@ func New(appId, rpcPort string, r *redis.Client) *WS {
 		register:     make(chan *Client),
 		unregister:   make(chan *Client),
 		shutdown:     make(chan struct{}),
-		clients:      make(map[string]*Client),
+		clientsMgr:   newClientsMgr(),
 		handlers:     make([]MessageHandler, 0),
 	}
 	hub.cache = newCache(r)
@@ -79,13 +78,14 @@ func (ws *WS) run() {
 			//退出程序, 断开所有连接
 			logger.Println("退出断开所有连接")
 			ws.cache.removeServerInfo(ws.appId, ws.grpcServer.serverInfo)
-			for id := range ws.clients {
-				c := ws.clients[id]
+			clients := ws.clientsMgr.getClients()
+			for id := range clients {
+				c := clients[id]
 				c.Close()
 				c.removeCache()
 				//close(client.send)
 			}
-			ws.clients = make(map[string]*Client)
+			ws.clientsMgr.delAll()
 			if ws.grpcServer != nil {
 				ws.grpcServer.Stop()
 			}
@@ -94,7 +94,7 @@ func (ws *WS) run() {
 			//注册新的客户端连接
 			logger.Infoln("register client: ", client.GetClientId())
 			//这里多设备连接需要负载均衡保持同一个ClientId路由到同一台服务器
-			c := ws.clients[client.GetClientId()]
+			c := ws.clientsMgr.getClient(client.GetClientId())
 			if c != nil {
 				//有旧的连接还在，关闭掉
 				logger.Infoln("断开重复的连接:", client.GetClientId())
@@ -107,7 +107,7 @@ func (ws *WS) run() {
 				go GrpcForceDisconnect(cacheInfo.serverInfo, client.GetClientId())
 			}
 			// 保存连接
-			ws.clients[client.GetClientId()] = client
+			ws.clientsMgr.addClient(client)
 			//保存连接信息到缓存
 			client.putToCache()
 
@@ -117,7 +117,7 @@ func (ws *WS) run() {
 			//删除客户端连接
 			logger.Infoln("unregister client: ", client.GetClientId())
 			close(client.send)
-			delete(ws.clients, client.GetClientId())
+			ws.clientsMgr.delClient(client.GetClientId())
 
 			//删除缓存的记录
 			client.removeCache()
@@ -187,7 +187,7 @@ func (ws *WS) postEventHandler(client *Client, event string) {
 
 // 本服务器内发送
 func (ws *WS) SendLocal(toClientId string, msg *WSBody) error {
-	if client, ok := ws.clients[toClientId]; ok {
+	if client := ws.clientsMgr.getClient(toClientId); client != nil {
 		err := client.Send(msg)
 		if err != nil {
 			return err
@@ -198,7 +198,7 @@ func (ws *WS) SendLocal(toClientId string, msg *WSBody) error {
 
 // 全局发送
 func (ws *WS) Send(toClientId string, msg *WSBody) error {
-	if _, ok := ws.clients[toClientId]; ok {
+	if client := ws.clientsMgr.getClient(toClientId); client != nil {
 		return ws.SendLocal(toClientId, msg)
 	} else {
 		//不在本服务器内转发到其他服务器
@@ -243,7 +243,8 @@ func (ws *WS) SendMore(toClients []string, msg *WSBody) error {
 // 本服务器广播
 func (ws *WS) BroadcastLocal(msg *WSBody, ignoreIds map[string]bool) error {
 	success := 0
-	for id := range ws.clients {
+	clients := ws.clientsMgr.getClients()
+	for id := range clients {
 		if ignoreIds != nil {
 			if _, ok := ignoreIds[id]; ok {
 				continue
@@ -307,7 +308,7 @@ func (ws *WS) Error(toClientId string, errcode int, errmsg string) error {
 
 // 强制断开连接
 func (ws *WS) ForceDisconnect(clientId string) error {
-	if client, ok := ws.clients[clientId]; ok {
+	if client := ws.clientsMgr.getClient(clientId); client != nil {
 		client.Close()
 		logger.Println("其他服务器通知断开连接:", clientId)
 	}
