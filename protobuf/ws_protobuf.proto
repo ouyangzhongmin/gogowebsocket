@@ -40,7 +40,7 @@ message SendMsgReq {
     int32 queue = 4; //
     int32 broadcast = 5; //全局广播
     //google.protobuf.Any body = 6; //
-    string body = 6;
+    bytes body = 6;
 }
 
 message ForceDisconnectReq {

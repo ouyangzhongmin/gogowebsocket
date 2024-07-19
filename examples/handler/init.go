@@ -13,9 +13,9 @@ var (
 	wsSrv *service.Service
 )
 
-func InitServices() {
+func InitServices(rpcPort string) {
 	rdb := NewRedis()
-	wsSrv = service.New(rdb)
+	wsSrv = service.New(rdb, rpcPort)
 }
 
 func NewRedis() *redis.Client {

@@ -9,9 +9,6 @@ import (
 func InitRouter() *gin.Engine {
 	gin.SetMode(gin.DebugMode)
 	r := gin.Default()
-	
-	handler.InitServices()
-
 	initRouter(r)
 	return r
 }

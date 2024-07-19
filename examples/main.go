@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"github.com/ouyangzhongmin/gogowebsocket/examples/handler"
 	"github.com/ouyangzhongmin/gogowebsocket/examples/router"
 	"github.com/ouyangzhongmin/gogowebsocket/logger"
@@ -12,7 +13,11 @@ import (
 	"time"
 )
 
+var port = flag.String("p", "", "http port")
+var rpcPort = flag.String("rp", "", "rpc port")
+
 func main() {
+	flag.Parse()
 	logger.Init(&logger.LogConf{
 		FileName:     "",
 		Level:        "debug",
@@ -20,8 +25,17 @@ func main() {
 	})
 	logger.Log.Println("start gin ..")
 
+	rport := *rpcPort
+	if rport == "" {
+		rport = "15200"
+	}
+	handler.InitServices(rport)
 	rt := router.InitRouter()
-	addr := ":15800"
+
+	addr := *port
+	if addr == "" {
+		addr = ":15800"
+	}
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: rt,
@@ -35,9 +49,6 @@ func main() {
 	}()
 
 	quit := make(chan os.Signal)
-	// kill (no param) default send syscall.SIGTERM
-	// kill -2 is syscall.SIGINT
-	// kill -9 is syscall.SIGKILL but can't be catch, so don't need add it
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	logger.Println("Shutdown Server ...")
@@ -48,7 +59,6 @@ func main() {
 	if err := srv.Shutdown(context.Background()); err != nil {
 		logger.Fatal("Server Shutdown err:", err)
 	}
-	//catching ctx.Done(). timeout of 2 seconds.
 	select {
 	case <-ctx.Done():
 		logger.Println("timeout of 2 seconds.")

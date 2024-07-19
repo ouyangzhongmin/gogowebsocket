@@ -6,7 +6,9 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/websocket"
 	"github.com/ouyangzhongmin/gogowebsocket/logger"
+	"github.com/ouyangzhongmin/gogowebsocket/timingwheel"
 	"net/http"
+	"time"
 )
 
 const (
@@ -29,6 +31,7 @@ type EventHandler func(*Client, string)
 type WS struct {
 	appId      string
 	clientsMgr *clientsMgr
+	timew      *timingwheel.TimingWheel
 	// 用于队列发送消息.
 	receiveQueue chan *WSBody
 
@@ -57,6 +60,7 @@ func New(appId, rpcPort string, r *redis.Client) *WS {
 		unregister:   make(chan *Client),
 		shutdown:     make(chan struct{}),
 		clientsMgr:   newClientsMgr(),
+		timew:        timingwheel.NewTimingWheel(time.Second, 100), //用于优化ticker过多
 		handlers:     make([]MessageHandler, 0),
 	}
 	hub.cache = newCache(r)

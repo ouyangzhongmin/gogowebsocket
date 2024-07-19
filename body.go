@@ -8,7 +8,7 @@ import (
 const (
 	BODY_TYPE_TEXT      = 1
 	BODY_TYPE_JSON      = 0
-	BODY_TYPE_BYTES     = 2 // 这个类型在grpc里转发不太适用，暂不支持
+	BODY_TYPE_BYTES     = 2
 	BODY_TYPE_HEARTBEAT = 10000
 	PONG                = "pong"
 

@@ -43,13 +43,13 @@ function onsubmit () {
     return false;
 };
 
-function createWebsocket(userInfo) {
+function createWebsocket(host, userInfo) {
     user = userInfo
     msg = document.getElementById("msg")
     log = document.getElementById("log")
     document.getElementById("form").onsubmit = onsubmit;
     if (window["WebSocket"]) {
-        conn = new WebSocket("ws://localhost:15800/v1/ws?uid="+user.uid+"&production="+user.production+"&deviceId="+user.deviceId);
+        conn = new WebSocket(host + "/v1/ws?uid="+user.uid+"&production="+user.production+"&deviceId="+user.deviceId);
         conn.onclose = function (evt) {
             var item = document.createElement("div");
             item.innerHTML = "<b>Connection closed.</b>";

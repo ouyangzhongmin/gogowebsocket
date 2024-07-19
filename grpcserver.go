@@ -41,10 +41,7 @@ func (s *server) CheckHealth(c context.Context, req *protobuf.CheckHealthReq) (r
 // 给用户发消息
 func (s *server) SendMsg(c context.Context, req *protobuf.SendMsgReq) (rsp *protobuf.OkRsp, err error) {
 	rsp = &protobuf.OkRsp{}
-	//body, err := anytop(req.Body)
-	//if err != nil {
-	//	return rsp, errors.New("anytop err:" + err.Error())
-	//}
+	logger.Debugln("收到rpc.SendMsg::", req.Clientid)
 	body2, err := s.convertReceiveBody(int(req.BodyType), req.Body)
 	if err != nil {
 		return rsp, errors.New("convertBody err:" + err.Error())
@@ -87,15 +84,15 @@ func (s *server) ForceDisconnect(c context.Context, req *protobuf.ForceDisconnec
 	return
 }
 
-func (s *server) convertReceiveBody(bodyType int, body string) (interface{}, error) {
+func (s *server) convertReceiveBody(bodyType int, body []byte) (interface{}, error) {
 	if bodyType == BODY_TYPE_TEXT {
-		return body, nil
+		return string(body), nil
 	}
 	if bodyType == BODY_TYPE_BYTES {
-		return []byte(body), nil
+		return body, nil
 	}
 	var data interface{}
-	err := json.Unmarshal([]byte(body), &data)
+	err := json.Unmarshal(body, &data)
 	return data, err
 }
 

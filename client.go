@@ -115,9 +115,11 @@ func (c *Client) readPump() {
 // application ensures that there is at most one writer to a connection by
 // executing all writes from this goroutine.
 func (c *Client) writePump() {
-	ticker := time.NewTicker(pingPeriod)
+	// 优化过多ticker的问题
+	// ticker := time.NewTicker(pingPeriod)
+	ticker := c.ws.timew.After(pingPeriod)
 	defer func() {
-		ticker.Stop()
+		//ticker.Stop()
 		c.conn.Close()
 	}()
 	for {
@@ -135,7 +137,9 @@ func (c *Client) writePump() {
 			if err != nil {
 				logger.Errorln("WriteJson err:", c.GetClientId(), err.Error())
 			}
-		case <-ticker.C:
+		//case <-ticker.C:
+		case <-ticker:
+			ticker = c.ws.timew.After(pingPeriod)
 			//在读取时间内必须发送心跳包，否则会超时1006 error断开连接
 			logger.Debugln("发送服务器心跳" + c.GetClientId())
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))

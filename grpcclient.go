@@ -83,17 +83,17 @@ func GrpcForceDisconnect(server serverInfo, clientId string) error {
 	return nil
 }
 
-func convertSendBody(bodyType int, body interface{}) (string, error) {
+func convertSendBody(bodyType int, body interface{}) ([]byte, error) {
 	if bodyType == BODY_TYPE_TEXT {
-		return body.(string), nil
+		return []byte(body.(string)), nil
 	}
 	if bodyType == BODY_TYPE_BYTES {
-		return string(body.([]byte)), nil
+		return body.([]byte), nil
 	}
-	bb, err := json.Marshal(body)
-	//bb, err := pbany(msg.Body)
+	tmp, err := json.Marshal(body)
+	//tmp, err := pbany(msg.Body)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return string(bb), nil
+	return tmp, nil
 }
