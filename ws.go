@@ -81,6 +81,7 @@ func (ws *WS) run() {
 		case <-ws.shutdown:
 			//退出程序, 断开所有连接
 			logger.Println("退出断开所有连接")
+			ws.timew.Stop()
 			ws.cache.removeServerInfo(ws.appId, ws.grpcServer.serverInfo)
 			clients := ws.clientsMgr.getClients()
 			for id := range clients {
