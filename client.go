@@ -123,7 +123,6 @@ func (c *Client) writePump() {
 	}()
 	for {
 		select {
-		//由于websocket不支持并发写入, 通过通道来处理
 		case message, ok := <-c.send:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
