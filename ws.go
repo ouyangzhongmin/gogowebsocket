@@ -130,7 +130,7 @@ func (ws *WS) run() {
 			//触发外部回调函数
 			go ws.postEventHandler(client, EVENT_UNREGISTER)
 		case msg := <-ws.receiveQueue:
-			//全局的队列处理消息
+			//通道队列处理消息
 			logger.Debugf("Receive queue msg: ClientID=%s, BodyType=%d, ProtocolId=%d \n", msg.ClientID, msg.BodyType, msg.ProtocolId)
 			ws._doReceiveMessage(msg)
 		}

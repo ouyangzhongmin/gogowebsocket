@@ -98,11 +98,10 @@ func (c *Client) readPump() {
 			continue
 		}
 		if msg.Queue != 0 {
-			//消息是否需要全局队列执行
+			//消息是否需要通道队列执行
 			c.ws.receiveQueue <- msg
 		} else {
-			//本携程内直接按顺序执行
-			//如果业务不需要单用户顺序，开发者需要回调函数内部再开携程并发处理以提升执行效率
+			//本携程内直接按顺序执行, 开发时需要考虑并发访问问题
 			logger.Debugf("Receive msg: ClientID=%s, BodyType=%d, ProtocolId=%d \n", msg.ClientID, msg.BodyType, msg.ProtocolId)
 			c.ws._doReceiveMessage(msg)
 		}
