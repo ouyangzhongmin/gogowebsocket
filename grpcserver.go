@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/go-co-op/gocron"
@@ -98,61 +99,170 @@ func (s *server) convertReceiveBody(bodyType int, body []byte) (interface{}, err
 
 type grpcServer struct {
 	serverInfo *serverInfo
-	Ws         *WS
+	ws         *WS
+	cache      *cache
 	startTime  time.Time
 	scheduler  *gocron.Scheduler
 }
 
-func newGrpcServer(ws *WS, serverInfo *serverInfo) *grpcServer {
+func newGrpcServer(ws *WS, cache *cache, port string) *grpcServer {
+	serverIp := GetServerIp()
+	sInfo := &serverInfo{
+		ServerIP: serverIp,
+		Port:     port,
+	}
 	return &grpcServer{
-		serverInfo: serverInfo,
-		Ws:         ws,
+		serverInfo: sInfo,
+		ws:         ws,
+		cache:      cache,
 		startTime:  time.Now(),
 	}
 }
 
 // 开启grpc server
 func (s *grpcServer) Start() {
-	fmt.Println("grpc.server 启动: ", s.serverInfo.ServerIP, s.serverInfo.Port)
-	lis, err := net.Listen("tcp", ":"+s.serverInfo.Port)
+	logger.Printf("grpc server starting: %s:%s\n", s.serverInfo.ServerIP, s.serverInfo.Port)
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", s.serverInfo.Port))
 	if err != nil {
 		logger.Fatalf("failed to listen: %v", err)
 	}
+
+	if s.serverInfo.Port == "0" {
+		// 如果是随机port需要从监听里重新获取端口
+		tmp := lis.Addr().String()
+		tmp = strings.ReplaceAll(tmp, "[::]", "")
+		tmpArr := strings.Split(tmp, ":")
+		if len(tmpArr) != 2 {
+			logger.Fatalf("grpc server addr 格式错误:%s", tmp)
+		}
+		s.serverInfo.Port = tmpArr[1]
+	}
 	sv := grpc.NewServer()
-	protobuf.RegisterWSServerServer(sv, &server{ws: s.Ws})
+	protobuf.RegisterWSServerServer(sv, &server{ws: s.ws})
+
+	logger.Printf("grpc server started: %s:%s\n", s.serverInfo.ServerIP, s.serverInfo.Port)
 	//记录到缓存
-	s.timerPushToCache()
+	s.timerPushServerToCache()
+
 	if err := sv.Serve(lis); err != nil {
-		s.Ws.cache.removeServerInfo(s.Ws.appId, s.serverInfo)
-		logger.Fatalf("failed to serve: %v", err)
+		if s.cache != nil {
+			s.cache.removeServerInfo(s.serverInfo)
+		}
+		logger.Fatalf("grpc start fatal: %v", err)
 	}
 }
 
 func (s *grpcServer) Stop() {
-	if s.scheduler != nil {
-		s.scheduler.Stop()
-		s.scheduler.Clear()
-		s.scheduler = nil
+	if s.cache != nil {
+		s.cache.removeServerInfo(s.ws.grpcServer.serverInfo)
+		if s.scheduler != nil {
+			s.scheduler.Stop()
+			s.scheduler.Clear()
+			s.scheduler = nil
+		}
 	}
 }
 
-func (s *grpcServer) timerPushToCache() {
-	s.doPushToCache()
-	//开启定时器 每隔30S更新在线
-	s.scheduler = gocron.NewScheduler(time.Local)
-	s.scheduler.Every(30).Seconds().Do(s.doPushToCache)
-	s.scheduler.StartAsync()
-
-	servers, err := s.Ws.cache.getServerInfos(s.Ws.appId)
+func (s *grpcServer) send(toClientId string, msg *WSBody) error {
+	info, err := s.cache.getClientInfo(toClientId)
 	if err != nil {
-		logger.Errorln("cache.getServerInfos err:", err)
+		return err
 	}
-	logger.Println("grpc servers :::", servers)
+	if info.isLocal(*s.serverInfo) {
+		return errors.New("本服务器的消息无需转发:" + toClientId)
+	}
+	if info.isOnline() {
+		err = GrpcSendMsg(info.serverInfo, msg, 0)
+		if err != nil {
+			return err
+		}
+	} else {
+		return errors.New("缓存的设备连接已断开:" + info.toString())
+	}
+	return nil
 }
 
-func (s *grpcServer) doPushToCache() {
-	err := s.Ws.cache.putServerInfo(s.Ws.appId, s.serverInfo, s.startTime)
+// 全局广播
+func (s *grpcServer) broadcast(msg *WSBody, ignoreIds map[string]bool) error {
+	//广播给其他server
+	servers, err := s.cache.getServerList()
 	if err != nil {
-		logger.Errorln("putGrpcServerInfo err:", err)
+		return err
+	}
+	for _, server := range servers {
+		if server.isLocal(*s.serverInfo) {
+			continue
+		}
+		if server.isOnline() {
+			err = GrpcSendMsg(server.serverInfo, msg, 1)
+			if err != nil {
+				logger.Errorln("GrpcSendMsg error::", err)
+				continue
+			}
+		} else {
+			logger.Warnln("grpc服务器已离线:" + server.toString())
+		}
+	}
+	return nil
+}
+
+func (s *grpcServer) disconnectRemoteIfNeed(clientId string) {
+	cacheInfo, _ := s.cache.getClientInfo(clientId)
+	if cacheInfo != nil && cacheInfo.isOnline() &&
+		(cacheInfo.ServerIP != s.serverInfo.ServerIP || cacheInfo.Port != s.serverInfo.Port) {
+		logger.Infoln("其他设备上有重复连接:", clientId)
+		go GrpcForceDisconnect(cacheInfo.serverInfo, clientId)
+	}
+}
+
+func (s *grpcServer) timerPushServerToCache() {
+	if s.cache != nil {
+		s.pushServerToCache()
+		//开启定时器 每隔30S更新在线
+		s.scheduler = gocron.NewScheduler(time.Local)
+		s.scheduler.Every(30).Seconds().Do(s.pushServerToCache)
+		s.scheduler.StartAsync()
+
+		servers, err := s.cache.getServerList()
+		if err != nil {
+			logger.Errorln("cache.getServerList error:", err)
+		}
+		logger.Println("grpc server list :::", servers)
+	}
+}
+
+func (s *grpcServer) pushServerToCache() {
+	if s.cache != nil {
+		err := s.cache.putServerInfo(s.serverInfo, s.startTime)
+		if err != nil {
+			logger.Errorln("pushServerToCache error:", err)
+		}
+	}
+}
+
+func (s *grpcServer) putClientToCache(c *Client) {
+	if s.cache != nil {
+		nowts := time.Now().Unix()
+		info := cacheClientInfo{
+			serverInfo: serverInfo{
+				ServerIP: s.serverInfo.ServerIP,
+				Port:     s.serverInfo.Port,
+			},
+			Ts:  nowts,         //最新在线的时间戳
+			CTs: c.connectedTs, //连接的时间戳
+		}
+		err := s.cache.putClientInfo(c.GetClientId(), info)
+		if err != nil {
+			logger.Errorln("putClientToCache error::", err)
+		}
+	}
+}
+
+func (s *grpcServer) removeClientCache(clientId string) {
+	if s.cache != nil {
+		err := s.cache.removeClientInfo(clientId)
+		if err != nil {
+			logger.Errorln("removeClientCache error::", err)
+		}
 	}
 }

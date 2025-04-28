@@ -29,9 +29,9 @@ type MessageHandler func(*WS, *WSBody)
 type EventHandler func(*Client, string)
 
 type WS struct {
-	appId      string
 	clientsMgr *clientsMgr
-	timew      *timingwheel.TimingWheel
+	//用于优化ticker过多
+	timew *timingwheel.TimingWheel
 	// 用于队列发送消息.
 	receiveQueue chan *WSBody
 
@@ -44,35 +44,37 @@ type WS struct {
 	shutdown chan struct{}
 
 	grpcServer *grpcServer
-	serverIp   string
-	rpcPort    string
-	cache      *cache
 
 	handlers     []MessageHandler
 	eventHandler EventHandler
 }
 
-func New(appId, rpcPort string, r *redis.Client) *WS {
+func New() *WS {
 	hub := &WS{
-		appId:        appId,
 		receiveQueue: make(chan *WSBody, 20),
 		register:     make(chan *Client),
 		unregister:   make(chan *Client),
 		shutdown:     make(chan struct{}),
 		clientsMgr:   newClientsMgr(),
-		timew:        timingwheel.NewTimingWheel(time.Second, 100), //用于优化ticker过多
+		timew:        timingwheel.NewTimingWheel(time.Second, 100),
 		handlers:     make([]MessageHandler, 0),
 	}
-	hub.cache = newCache(r)
-	hub.serverIp = GetServerIp()
-	hub.rpcPort = rpcPort
-	hub.grpcServer = newGrpcServer(hub, &serverInfo{
-		ServerIP: hub.serverIp,
-		Port:     hub.rpcPort,
-	})
-	go hub.grpcServer.Start()
 	go hub.run()
 	return hub
+}
+
+// 需要主动开启grpc服务, appId用于区分记录在缓存中的命名
+func (ws *WS) StartGrpcServer(appId, grpcPort string, r *redis.Client) {
+	if appId == "" {
+		panic("appId is empty")
+	}
+	if grpcPort == "" {
+		panic("grpcPort is empty")
+	}
+	c := newCache(appId, r)
+	ws.grpcServer = newGrpcServer(ws, c, grpcPort)
+	go ws.grpcServer.Start()
+
 }
 
 func (ws *WS) run() {
@@ -82,12 +84,13 @@ func (ws *WS) run() {
 			//退出程序, 断开所有连接
 			logger.Println("退出断开所有连接")
 			ws.timew.Stop()
-			ws.cache.removeServerInfo(ws.appId, ws.grpcServer.serverInfo)
 			clients := ws.clientsMgr.getClients()
 			for id := range clients {
 				c := clients[id]
 				c.Close()
-				c.removeCache()
+				if ws.grpcServer != nil {
+					ws.grpcServer.removeClientCache(id)
+				}
 				//close(client.send)
 			}
 			ws.clientsMgr.delAll()
@@ -106,15 +109,15 @@ func (ws *WS) run() {
 				c.Close()
 			}
 			//检测缓存中记录的连接信息
-			cacheInfo, _ := ws.cache.getClientInfo(ws.appId, client.GetClientId())
-			if cacheInfo != nil && cacheInfo.isOnline() && (cacheInfo.ServerIP != ws.serverIp || cacheInfo.Port != ws.rpcPort) {
-				logger.Infoln("其他设备上有重复连接:", client.GetClientId())
-				go GrpcForceDisconnect(cacheInfo.serverInfo, client.GetClientId())
+			if ws.grpcServer != nil {
+				ws.grpcServer.disconnectRemoteIfNeed(client.GetClientId())
 			}
 			// 保存连接
 			ws.clientsMgr.addClient(client)
 			//保存连接信息到缓存
-			client.putToCache()
+			if ws.grpcServer != nil {
+				ws.grpcServer.putClientToCache(client)
+			}
 
 			//触发外部回调函数
 			go ws.postEventHandler(client, EVENT_REGISTER)
@@ -125,7 +128,9 @@ func (ws *WS) run() {
 			ws.clientsMgr.delClient(client.GetClientId())
 
 			//删除缓存的记录
-			client.removeCache()
+			if ws.grpcServer != nil {
+				ws.grpcServer.removeClientCache(client.GetClientId())
+			}
 
 			//触发外部回调函数
 			go ws.postEventHandler(client, EVENT_UNREGISTER)
@@ -205,25 +210,11 @@ func (ws *WS) SendLocal(toClientId string, msg *WSBody) error {
 func (ws *WS) Send(toClientId string, msg *WSBody) error {
 	if client := ws.clientsMgr.getClient(toClientId); client != nil {
 		return ws.SendLocal(toClientId, msg)
-	} else {
+	} else if ws.grpcServer != nil {
 		//不在本服务器内转发到其他服务器
-		info, err := ws.cache.getClientInfo(ws.appId, toClientId)
-		if err != nil {
-			return err
-		}
-		if info.isLocal(*ws.grpcServer.serverInfo) {
-			return errors.New("本服务器的消息无需转发:" + toClientId)
-		}
-		if info.isOnline() {
-			err = GrpcSendMsg(info.serverInfo, msg, 0)
-			if err != nil {
-				return err
-			}
-		} else {
-			return errors.New("设备连接已断开:" + info.toString())
-		}
+		return ws.grpcServer.send(toClientId, msg)
 	}
-	return nil
+	return errors.New("未找到设备连接:" + toClientId)
 }
 
 // 多个连接发送数据
@@ -274,25 +265,11 @@ func (ws *WS) Broadcast(msg *WSBody, ignoreIds map[string]bool) error {
 	if err != nil {
 		logger.Errorln("BroadcastLocal err::", err)
 	}
-	//广播给其他server
-	servers, err := ws.cache.getServerInfos(ws.appId)
-	if err == nil {
-		for _, server := range servers {
-			if server.isLocal(*ws.grpcServer.serverInfo) {
-				continue
-			}
-			if server.isOnline() {
-				err = GrpcSendMsg(server.serverInfo, msg, 1)
-				if err != nil {
-					logger.Errorln("GrpcSendMsg err::", err)
-					continue
-				}
-			} else {
-				logger.Warnln("rpc服务器已离线:" + server.toString())
-			}
+	if ws.grpcServer != nil {
+		err = ws.grpcServer.broadcast(msg, ignoreIds)
+		if err != nil {
+			return err
 		}
-	} else {
-		logger.Errorln("getServerInfos err::", err)
 	}
 	return nil
 }
@@ -307,7 +284,7 @@ func (ws *WS) Error(toClientId string, errcode int, errmsg string) error {
 			ErrMsg:  errmsg,
 		},
 	}
-	logger.Errorln("Reponse client Err:", toClientId, errcode, errmsg)
+	logger.Errorln("send client Error:", toClientId, errcode, errmsg)
 	return ws.Send(toClientId, errMsg)
 }
 

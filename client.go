@@ -145,7 +145,10 @@ func (c *Client) writePump() {
 				//心跳发送失败了，则认为连接已断开
 				return
 			}
-			c.putToCache() //更新缓存的在线状态
+			// 更新缓存状态
+			if c.ws.grpcServer != nil {
+				c.ws.grpcServer.putClientToCache(c)
+			}
 		}
 	}
 }
@@ -176,27 +179,4 @@ func (c *Client) GetClientId() string {
 		return c.userInfo.GetClientID()
 	}
 	return "0"
-}
-
-func (c *Client) putToCache() {
-	nowts := time.Now().Unix()
-	info := cacheClientInfo{
-		serverInfo: serverInfo{
-			ServerIP: c.ws.serverIp,
-			Port:     c.ws.rpcPort,
-		},
-		Ts:  nowts,         //最新在线的时间戳
-		CTs: c.connectedTs, //连接的时间戳
-	}
-	err := c.ws.cache.putClientInfo(c.ws.appId, c.GetClientId(), info)
-	if err != nil {
-		logger.Errorln("cache.putClientInfo err::", err)
-	}
-}
-
-func (c *Client) removeCache() {
-	err := c.ws.cache.removeClientInfo(c.ws.appId, c.GetClientId())
-	if err != nil {
-		logger.Errorln("cache.removeClientInfo err::", err)
-	}
 }

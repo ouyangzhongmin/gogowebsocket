@@ -27,14 +27,14 @@ func main() {
 
 	rport := *rpcPort
 	if rport == "" {
-		rport = "15200"
+		rport = "0"
 	}
 	handler.InitServices(rport)
 	rt := router.InitRouter()
 
 	addr := *port
 	if addr == "" {
-		addr = ":15800"
+		addr = ":15801"
 	}
 	srv := &http.Server{
 		Addr:    addr,
@@ -42,7 +42,7 @@ func main() {
 	}
 
 	go func() {
-		logger.Println("server start listening at ", addr, "....")
+		logger.Println("http server start listening at ", addr, "....")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Panic("listen error ", err)
 		}

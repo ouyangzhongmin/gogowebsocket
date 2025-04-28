@@ -38,12 +38,13 @@ type Service struct {
 	cache *cache
 }
 
-func New(rdClient *redis.Client, rpcPort string) (s *Service) {
+func New(rdsClient *redis.Client, rpcPort string) (s *Service) {
 	s = &Service{}
-	s.ws = gogowebsocket.New("pppp", rpcPort, rdClient)
+	s.ws = gogowebsocket.New()
+	s.ws.StartGrpcServer("pppp", rpcPort, rdsClient)
 	s.ws.RegisterHandler(s.messageHandler)
 	s.ws.RegisterEventHandler(s.eventHandler)
-	s.cache = newCache(rdClient)
+	s.cache = newCache(rdsClient)
 	return
 }
 

@@ -53,48 +53,52 @@ func (i *cacheClientInfo) isOnline() bool {
 }
 
 type cache struct {
-	r *redis.Client
+	appId string
+	r     *redis.Client
 }
 
-func newCache(r *redis.Client) *cache {
-	return &cache{r: r}
+func newCache(appId string, r *redis.Client) *cache {
+	return &cache{appId: appId, r: r}
+}
+
+func (c *cache) isAvailable() bool {
+	return c.r != nil
 }
 
 // 更新服务器到缓存
-func (c *cache) putServerInfo(appId string, info *serverInfo, startTime time.Time) error {
-	if c.r == nil {
-		return errors.New("redis未初始化")
-	}
-	tmp := &cacheServerInfo{
-		serverInfo: *info,
-		StartTime:  startTime.Format(time.RFC3339),  //服务器启动时间
-		TimeStr:    time.Now().Format(time.RFC3339), //最新在线时间
-		Ts:         time.Now().Unix(),               //最新在线时间戳
-	}
-	ctx := context.Background()
-	key := fmt.Sprintf(CACHE_SERVERS_KEY, appId)
-	str, err := json.Marshal(tmp)
-	if err != nil {
-		return err
-	}
-	cmd := c.r.HSet(ctx, key, info.toString(), str)
-	if cmd.Err() != nil {
-		return cmd.Err()
-	}
-	//设置列表的有效期，如果没有服务器更新了，则列表到期清空
-	cmd2 := c.r.Expire(ctx, key, time.Second*SERVER_LIST_CACHE_TIME)
-	if cmd2.Err() != nil {
-		return cmd2.Err()
+func (c *cache) putServerInfo(info *serverInfo, startTime time.Time) error {
+	if c.isAvailable() {
+		tmp := &cacheServerInfo{
+			serverInfo: *info,
+			StartTime:  startTime.Format(time.RFC3339),  //服务器启动时间
+			TimeStr:    time.Now().Format(time.RFC3339), //最新在线时间
+			Ts:         time.Now().Unix(),               //最新在线时间戳
+		}
+		ctx := context.Background()
+		key := fmt.Sprintf(CACHE_SERVERS_KEY, c.appId)
+		str, err := json.Marshal(tmp)
+		if err != nil {
+			return err
+		}
+		cmd := c.r.HSet(ctx, key, info.toString(), str)
+		if cmd.Err() != nil {
+			return cmd.Err()
+		}
+		//设置列表的有效期，如果没有服务器更新了，则列表到期清空
+		cmd2 := c.r.Expire(ctx, key, time.Second*SERVER_LIST_CACHE_TIME)
+		if cmd2.Err() != nil {
+			return cmd2.Err()
+		}
 	}
 	return nil
 }
 
 // 判定服务器是否在线
-func (c *cache) isServerOnline(appId string, info *serverInfo) (bool, error) {
-	if c.r == nil {
+func (c *cache) isServerOnline(info *serverInfo) (bool, error) {
+	if !c.isAvailable() {
 		return false, errors.New("redis未初始化")
 	}
-	key := fmt.Sprintf(CACHE_SERVERS_KEY, appId)
+	key := fmt.Sprintf(CACHE_SERVERS_KEY, c.appId)
 	cmd := c.r.HGet(context.Background(), key, info.toString())
 	if cmd.Err() != nil {
 		return false, cmd.Err()
@@ -109,24 +113,23 @@ func (c *cache) isServerOnline(appId string, info *serverInfo) (bool, error) {
 }
 
 // 删除服务器上的缓存
-func (c *cache) removeServerInfo(appId string, info *serverInfo) error {
-	if c.r == nil {
-		return errors.New("redis未初始化")
-	}
-	key := fmt.Sprintf(CACHE_SERVERS_KEY, appId)
-	cmd := c.r.HDel(context.Background(), key, info.toString())
-	if cmd.Err() != nil {
-		return cmd.Err()
+func (c *cache) removeServerInfo(info *serverInfo) error {
+	if c.isAvailable() {
+		key := fmt.Sprintf(CACHE_SERVERS_KEY, c.appId)
+		cmd := c.r.HDel(context.Background(), key, info.toString())
+		if cmd.Err() != nil {
+			return cmd.Err()
+		}
 	}
 	return nil
 }
 
 // 返回全部的服务器列表
-func (c *cache) getServerInfos(appId string) ([]cacheServerInfo, error) {
-	if c.r == nil {
-		return nil, errors.New("redis未初始化")
+func (c *cache) getServerList() ([]cacheServerInfo, error) {
+	if !c.isAvailable() {
+		return []cacheServerInfo{}, nil
 	}
-	key := fmt.Sprintf(CACHE_SERVERS_KEY, appId)
+	key := fmt.Sprintf(CACHE_SERVERS_KEY, c.appId)
 	cmd := c.r.HGetAll(context.Background(), key)
 	if cmd.Err() != nil {
 		return nil, cmd.Err()
@@ -146,27 +149,26 @@ func (c *cache) getServerInfos(appId string) ([]cacheServerInfo, error) {
 }
 
 // 保存用户连接信息到redis
-func (c *cache) putClientInfo(appId string, clientId string, info cacheClientInfo) error {
-	if c.r == nil {
-		return errors.New("redis未初始化")
-	}
-	key := fmt.Sprintf(CACHE_HASH_KEY, appId)
-	jsonbytes, err := json.Marshal(&info)
-	if err != nil {
-		return err
-	}
-	cmd := c.r.HSet(context.Background(), key, clientId, string(jsonbytes))
-	if cmd.Err() != nil {
-		return cmd.Err()
+func (c *cache) putClientInfo(clientId string, info cacheClientInfo) error {
+	if c.isAvailable() {
+		key := fmt.Sprintf(CACHE_HASH_KEY, c.appId)
+		jsonbytes, err := json.Marshal(&info)
+		if err != nil {
+			return err
+		}
+		cmd := c.r.HSet(context.Background(), key, clientId, string(jsonbytes))
+		if cmd.Err() != nil {
+			return cmd.Err()
+		}
 	}
 	return nil
 }
 
-func (c *cache) getClientInfo(appId string, clientId string) (*cacheClientInfo, error) {
-	if c.r == nil {
+func (c *cache) getClientInfo(clientId string) (*cacheClientInfo, error) {
+	if !c.isAvailable() {
 		return nil, errors.New("redis未初始化")
 	}
-	key := fmt.Sprintf(CACHE_HASH_KEY, appId)
+	key := fmt.Sprintf(CACHE_HASH_KEY, c.appId)
 	cmd := c.r.HGet(context.Background(), key, clientId)
 	if cmd.Err() != nil {
 		return nil, cmd.Err()
@@ -177,14 +179,13 @@ func (c *cache) getClientInfo(appId string, clientId string) (*cacheClientInfo, 
 	return &info, err
 }
 
-func (c *cache) removeClientInfo(appId string, clientId string) error {
-	if c.r == nil {
-		return errors.New("redis未初始化")
-	}
-	key := fmt.Sprintf(CACHE_HASH_KEY, appId)
-	cmd := c.r.HDel(context.Background(), key, clientId)
-	if cmd.Err() != nil {
-		return cmd.Err()
+func (c *cache) removeClientInfo(clientId string) error {
+	if c.isAvailable() {
+		key := fmt.Sprintf(CACHE_HASH_KEY, c.appId)
+		cmd := c.r.HDel(context.Background(), key, clientId)
+		if cmd.Err() != nil {
+			return cmd.Err()
+		}
 	}
 	return nil
 }
