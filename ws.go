@@ -29,7 +29,9 @@ type MessageHandler func(*WS, *WSBody)
 type EventHandler func(*Client, string)
 
 type WS struct {
-	clientsMgr *clientsMgr
+	// Maximum message size allowed from peer.
+	maxMessageSize int64
+	clientsMgr     *clientsMgr
 	//用于优化ticker过多
 	timew *timingwheel.TimingWheel
 	// 用于队列发送消息.
@@ -51,13 +53,14 @@ type WS struct {
 
 func New() *WS {
 	hub := &WS{
-		receiveQueue: make(chan *WSBody, 20),
-		register:     make(chan *Client),
-		unregister:   make(chan *Client),
-		shutdown:     make(chan struct{}),
-		clientsMgr:   newClientsMgr(),
-		timew:        timingwheel.NewTimingWheel(time.Second, 100),
-		handlers:     make([]MessageHandler, 0),
+		maxMessageSize: 1024, //默认的单条消息的字节数限制
+		receiveQueue:   make(chan *WSBody, 20),
+		register:       make(chan *Client),
+		unregister:     make(chan *Client),
+		shutdown:       make(chan struct{}),
+		clientsMgr:     newClientsMgr(),
+		timew:          timingwheel.NewTimingWheel(time.Second, 100),
+		handlers:       make([]MessageHandler, 0),
 	}
 	go hub.run()
 	return hub
@@ -75,6 +78,13 @@ func (ws *WS) StartGrpcServer(appId, grpcPort string, r *redis.Client) {
 	ws.grpcServer = newGrpcServer(ws, c, grpcPort)
 	go ws.grpcServer.Start()
 
+}
+
+func (ws *WS) SetMaxMessageSize(v int64) {
+	if v < 20 {
+		panic("maxMessageSize is too small")
+	}
+	ws.maxMessageSize = v
 }
 
 func (ws *WS) run() {
