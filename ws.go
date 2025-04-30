@@ -22,9 +22,9 @@ type EventHandler func(*Client, string)
 
 type WS struct {
 	// Maximum message size allowed from peer.
-	upgrader       websocket.Upgrader
-	maxMessageSize int64
-	clientsMgr     *clientsMgr
+	upgrader   websocket.Upgrader
+	opts       options
+	clientsMgr *clientsMgr
 	//用于优化ticker过多
 	timew *timingwheel.TimingWheel
 	// 用于队列发送消息.
@@ -44,20 +44,37 @@ type WS struct {
 	eventHandler EventHandler
 }
 
-func New() *WS {
+func New(opts ...Option) *WS {
+	o := options{
+		maxMessageSize:  1024, // 字节
+		writeWaitTime:   30 * time.Second,
+		pongWaitTime:    60 * time.Second,
+		pingPeriod:      (60 * time.Second * 9) / 10,
+		writeBufferSize: 1024,
+		readBufferSize:  1024,
+	}
+	for _, opt := range opts {
+		opt(&o)
+	}
+	if o.maxMessageSize < 20 {
+		panic("maxMessageSize is too small")
+	}
+	if o.pingPeriod >= o.pongWaitTime {
+		panic("pingPeriod must be less than pongWaitTime")
+	}
 	hub := &WS{
-		maxMessageSize: 512, //默认的单条消息的字节数限制
-		receiveQueue:   make(chan *WSBody, 20),
-		register:       make(chan *Client),
-		unregister:     make(chan *Client),
-		shutdown:       make(chan struct{}),
-		clientsMgr:     newClientsMgr(),
-		timew:          timingwheel.NewTimingWheel(time.Second, 100),
-		handlers:       make([]MessageHandler, 0),
+		opts:         o, //默认的单条消息的字节数限制
+		receiveQueue: make(chan *WSBody, 20),
+		register:     make(chan *Client),
+		unregister:   make(chan *Client),
+		shutdown:     make(chan struct{}),
+		clientsMgr:   newClientsMgr(),
+		timew:        timingwheel.NewTimingWheel(time.Second, 100),
+		handlers:     make([]MessageHandler, 0),
 	}
 	hub.upgrader = websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024, // 1kb 写缓冲区
+		ReadBufferSize:  o.readBufferSize,
+		WriteBufferSize: o.writeBufferSize,
 		CheckOrigin: func(r *http.Request) bool {
 			return true
 		},
@@ -78,13 +95,6 @@ func (ws *WS) StartGrpcServer(appId, grpcPort string, r *redis.Client) {
 	ws.grpcServer = newGrpcServer(ws, c, grpcPort)
 	go ws.grpcServer.Start()
 
-}
-
-func (ws *WS) SetMaxMessageSize(v int64) {
-	if v < 20 {
-		panic("maxMessageSize is too small")
-	}
-	ws.maxMessageSize = v
 }
 
 func (ws *WS) SetWriteBufferSize(v int) {

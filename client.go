@@ -7,14 +7,14 @@ import (
 )
 
 const (
-	// Time allowed to write a message to the peer.
-	writeWait = 30 * time.Second
+// Time allowed to write a message to the peer.
+//writeWait = 30 * time.Second
 
-	// Time allowed to read the next pong message from the peer.
-	pongWait = 60 * time.Second
+// Time allowed to read the next pong message from the peer.
+//pongWait = 60 * time.Second
 
-	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = (pongWait * 9) / 10
+// Send pings to peer with this period. Must be less than pongWait.
+// pingPeriod = (pongWait * 9) / 10
 )
 
 var (
@@ -59,9 +59,9 @@ func (c *Client) readPump() {
 		c.ws.unregister <- c
 		c.conn.Close()
 	}()
-	c.conn.SetReadLimit(c.ws.maxMessageSize) // 消息体大小限制
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	c.conn.SetReadLimit(c.ws.opts.maxMessageSize) // 消息体大小限制
+	c.conn.SetReadDeadline(time.Now().Add(c.ws.opts.pongWaitTime))
+	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(c.ws.opts.pongWaitTime)); return nil })
 	c.clientPingTime = time.Now()
 	for {
 		msg := &WSBody{}
@@ -113,7 +113,7 @@ func (c *Client) readPump() {
 func (c *Client) writePump() {
 	// 优化过多ticker的问题
 	// ticker := time.NewTicker(pingPeriod)
-	ticker := c.ws.timew.After(pingPeriod)
+	ticker := c.ws.timew.After(c.ws.opts.pingPeriod)
 	defer func() {
 		//ticker.Stop()
 		c.conn.Close()
@@ -121,7 +121,7 @@ func (c *Client) writePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			c.conn.SetWriteDeadline(time.Now().Add(c.ws.opts.writeWaitTime))
 			if !ok {
 				// The hub closed the channel.
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
@@ -134,10 +134,10 @@ func (c *Client) writePump() {
 			}
 		//case <-ticker.C:
 		case <-ticker:
-			ticker = c.ws.timew.After(pingPeriod)
+			ticker = c.ws.timew.After(c.ws.opts.pingPeriod)
 			//在读取时间内必须发送心跳包，否则会超时1006 error断开连接
 			logger.Debugln("发送服务器心跳" + c.GetClientId())
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			c.conn.SetWriteDeadline(time.Now().Add(c.ws.opts.writeWaitTime))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				//心跳发送失败了，则认为连接已断开
 				return
