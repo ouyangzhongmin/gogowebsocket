@@ -16,20 +16,13 @@ const (
 	EVENT_UNREGISTER = "unregister"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024 * 1024, // 1MB 写缓冲区
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
-
 type MessageHandler func(*WS, *WSBody)
 
 type EventHandler func(*Client, string)
 
 type WS struct {
 	// Maximum message size allowed from peer.
+	upgrader       websocket.Upgrader
 	maxMessageSize int64
 	clientsMgr     *clientsMgr
 	//用于优化ticker过多
@@ -53,7 +46,7 @@ type WS struct {
 
 func New() *WS {
 	hub := &WS{
-		maxMessageSize: 1024, //默认的单条消息的字节数限制
+		maxMessageSize: 512, //默认的单条消息的字节数限制
 		receiveQueue:   make(chan *WSBody, 20),
 		register:       make(chan *Client),
 		unregister:     make(chan *Client),
@@ -61,6 +54,13 @@ func New() *WS {
 		clientsMgr:     newClientsMgr(),
 		timew:          timingwheel.NewTimingWheel(time.Second, 100),
 		handlers:       make([]MessageHandler, 0),
+	}
+	hub.upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024, // 1kb 写缓冲区
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
 	}
 	go hub.run()
 	return hub
@@ -85,6 +85,14 @@ func (ws *WS) SetMaxMessageSize(v int64) {
 		panic("maxMessageSize is too small")
 	}
 	ws.maxMessageSize = v
+}
+
+func (ws *WS) SetWriteBufferSize(v int) {
+	ws.upgrader.WriteBufferSize = v
+}
+
+func (ws *WS) SetReadBufferSize(v int) {
+	ws.upgrader.ReadBufferSize = v
 }
 
 func (ws *WS) run() {
@@ -169,7 +177,7 @@ func (ws *WS) ServeWs(userinfo UserInfo, w http.ResponseWriter, r *http.Request)
 	if userinfo == nil {
 		return errors.New("userinfo must not null!")
 	}
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := ws.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		logger.Errorln("Upgrade ws err:", err)
 		return err
