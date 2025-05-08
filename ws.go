@@ -52,6 +52,7 @@ func New(opts ...Option) *WS {
 		pingPeriod:      (60 * time.Second * 9) / 10,
 		writeBufferSize: 1024,
 		readBufferSize:  1024,
+		bodyFormat:      BODYFORMAT_JSON, // 默认json类型
 	}
 	for _, opt := range opts {
 		opt(&o)
@@ -61,6 +62,9 @@ func New(opts ...Option) *WS {
 	}
 	if o.pingPeriod >= o.pongWaitTime {
 		panic("pingPeriod must be less than pongWaitTime")
+	}
+	if o.bodyFormat != BODYFORMAT_BINARY && o.bodyFormat != BODYFORMAT_JSON {
+		panic("bodyFormat must be json or binary")
 	}
 	hub := &WS{
 		opts:         o, //默认的单条消息的字节数限制

@@ -34,8 +34,9 @@ function onsubmit () {
         msgobj.body = ""
     }else if (msg.value=="-4"){
         msgobj.protocol_id=9100
-        msgobj.body_type=BODY_TYPE_BYTES
+        msgobj.body_type=BODY_TYPE_TEXT
         msgobj.body = "你好，我是前端数据"
+        msgobj.body_format = 'binary'
     }else{
         msgobj.protocol_id=1000
         msgobj.body_type=BODY_TYPE_JSON
@@ -132,7 +133,7 @@ function createWebsocket(host, userInfo) {
 }
 
 function sendMessge(msgobj) {
-    if (msgobj.body_type == BODY_TYPE_BYTES){
+    if (msgobj.body_format == 'binary'){
         // 给服务器发送字节流数据
         const encoder = new TextEncoder();
         // 假设 BODY_TYPE_BYTES 是已定义的常量（示例值 0x01）

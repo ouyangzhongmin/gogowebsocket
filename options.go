@@ -10,6 +10,7 @@ type options struct {
 	pingPeriod      time.Duration
 	writeBufferSize int
 	readBufferSize  int
+	bodyFormat      BODYFORMAT // 协议
 }
 
 func MaxMessageSize(value int64) Option {
@@ -45,5 +46,11 @@ func WriteBufferSize(value int) Option {
 func ReadBufferSize(value int) Option {
 	return func(o *options) {
 		o.readBufferSize = value
+	}
+}
+
+func BodyFormat(value BODYFORMAT) Option {
+	return func(o *options) {
+		o.bodyFormat = value
 	}
 }

@@ -62,6 +62,7 @@ func (s *Service) messageHandler(ws *gogowebsocket.WS, msg *gogowebsocket.WSBody
 		msg2 := &gogowebsocket.WSBody{}
 		msg2.ProtocolId = 9001
 		msg2.BodyType = gogowebsocket.BODY_TYPE_BYTES
+		msg2.BodyFormat = gogowebsocket.BODYFORMAT_BINARY // 指定为字节流传输
 		msg2.Body = []byte("你好,这是服务器的字节流测试数据")
 		err := ws.Broadcast(msg2, nil)
 		if err != nil {

@@ -7,6 +7,8 @@ import (
 	"fmt"
 )
 
+type BODYFORMAT string
+
 const (
 	BODY_TYPE_TEXT      = 1
 	BODY_TYPE_JSON      = 0
@@ -16,6 +18,9 @@ const (
 
 	ID_ERROR     = -1
 	ID_HEARTBEAT = -2
+
+	BODYFORMAT_JSON   = "json"   // json
+	BODYFORMAT_BINARY = "binary" // 二进制流
 )
 
 type Error struct {
@@ -26,6 +31,7 @@ type Error struct {
 type WSBody struct {
 	ClientID   string      `json:"-"`
 	Client     *Client     `json:"-"`
+	BodyFormat BODYFORMAT  `json:"-"` // 可以在发送数据时单独指定传输格式类型，只有强制指定BODYFORMAT_BINARY才会强制这个类型
 	ProtocolId int64       `json:"protocol_id"`
 	BodyType   int         `json:"body_type"`
 	Queue      int         `json:"queue"` //是否全局队列处理消息,提供前端api接口时需要标记清楚

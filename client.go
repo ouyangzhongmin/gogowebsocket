@@ -77,8 +77,10 @@ func (c *Client) readPump() {
 		}
 		if messageType == websocket.BinaryMessage {
 			err = msg.unpackBinaryMessage(messageBytes)
+			msg.BodyFormat = BODYFORMAT_BINARY
 		} else {
 			err = json.Unmarshal(messageBytes, msg)
+			msg.BodyFormat = BODYFORMAT_JSON
 		}
 		if err != nil {
 			logger.Errorf("unpack message error: %v \n", err)
@@ -132,7 +134,7 @@ func (c *Client) writePump() {
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-			if message.BodyType == BODY_TYPE_BYTES {
+			if c.ws.opts.bodyFormat == BODYFORMAT_BINARY || message.BodyFormat == BODYFORMAT_BINARY {
 				//转换为字节流传输，包体格式如下： 0-4: protocolId, 4-8: bodySize, 8-end: body
 				bytes, err := message.packBinaryMessage()
 				if err != nil {
