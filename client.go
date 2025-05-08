@@ -1,6 +1,7 @@
 package gogowebsocket
 
 import (
+	"encoding/json"
 	"github.com/gorilla/websocket"
 	"github.com/ouyangzhongmin/gogowebsocket/logger"
 	"time"
@@ -65,20 +66,24 @@ func (c *Client) readPump() {
 	c.clientPingTime = time.Now()
 	for {
 		msg := &WSBody{}
-		//_, messageBytes, err := c.conn.ReadMessage()
-		err := c.conn.ReadJSON(msg)
+		//err := c.conn.ReadJSON(msg)
+		messageType, messageBytes, err := c.conn.ReadMessage()
+		//messageBytes = bytes.TrimSpace(bytes.Replace(messageBytes, newline, space, -1))
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				logger.Errorf("error0: %v \n", err)
+				logger.Errorf("ReadMessage error: %v \n", err)
 			}
 			break
 		}
-		//messageBytes = bytes.TrimSpace(bytes.Replace(messageBytes, newline, space, -1))
-		//var msg PBMessageBody
-		//err = proto.Unmarshal(messageBytes, &msg)
-		//if err != nil {
-		//	log.Printf("error1: %v", err)
-		//}
+		if messageType == websocket.BinaryMessage {
+			err = msg.unpackBinaryMessage(messageBytes)
+		} else {
+			err = json.Unmarshal(messageBytes, msg)
+		}
+		if err != nil {
+			logger.Errorf("unpack message error: %v \n", err)
+			break
+		}
 		msg.ClientID = c.GetClientId()
 		msg.Client = c
 		if msg.BodyType == BODY_TYPE_HEARTBEAT {
@@ -127,10 +132,22 @@ func (c *Client) writePump() {
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-
-			err := c.conn.WriteJSON(message)
-			if err != nil {
-				logger.Errorln("WriteJson err:", c.GetClientId(), err.Error())
+			if message.BodyType == BODY_TYPE_BYTES {
+				//转换为字节流传输，包体格式如下： 0-4: protocolId, 4-8: bodySize, 8-end: body
+				bytes, err := message.packBinaryMessage()
+				if err != nil {
+					logger.Errorln("packBinaryMessage err:", c.GetClientId(), err.Error())
+				} else {
+					err := c.conn.WriteMessage(websocket.BinaryMessage, bytes)
+					if err != nil {
+						logger.Errorln("WriteBytes err:", c.GetClientId(), err.Error())
+					}
+				}
+			} else {
+				err := c.conn.WriteJSON(message)
+				if err != nil {
+					logger.Errorln("WriteJson err:", c.GetClientId(), err.Error())
+				}
 			}
 		//case <-ticker.C:
 		case <-ticker:

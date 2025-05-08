@@ -57,13 +57,27 @@ func (s *Service) Shutdown() {
 }
 
 func (s *Service) messageHandler(ws *gogowebsocket.WS, msg *gogowebsocket.WSBody) {
-	str, _ := msg.BodyToString()
-	logger.Println("测试用ws广播：", msg.ProtocolId, str)
-	err := ws.Broadcast(msg, nil)
-	if err != nil {
-		logger.Println("测试用ws转发err：", err)
-		return
+	if msg.ProtocolId == 9000 {
+		logger.Println("测试用ws bytes广播：", msg.ProtocolId)
+		msg2 := &gogowebsocket.WSBody{}
+		msg2.ProtocolId = 9001
+		msg2.BodyType = gogowebsocket.BODY_TYPE_BYTES
+		msg2.Body = []byte("你好,这是服务器的字节流测试数据")
+		err := ws.Broadcast(msg2, nil)
+		if err != nil {
+			logger.Println("测试用ws转发err：", err)
+			return
+		}
+	} else {
+		str, _ := msg.BodyToString()
+		logger.Println("测试用ws广播：", msg.ProtocolId, str)
+		err := ws.Broadcast(msg, nil)
+		if err != nil {
+			logger.Println("测试用ws转发err：", err)
+			return
+		}
 	}
+
 }
 
 func (s *Service) eventHandler(client *gogowebsocket.Client, event string) {
