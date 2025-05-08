@@ -12,7 +12,7 @@ type BODYFORMAT string
 const (
 	BODY_TYPE_TEXT      = 1
 	BODY_TYPE_JSON      = 0
-	BODY_TYPE_BYTES     = 2 // 如果是这个格式，将会把WSBody包按包体格式如下通过字节流发送给前端,包体格式参考packBinaryMessage函数
+	BODY_TYPE_BYTES     = 2 
 	BODY_TYPE_HEARTBEAT = 10000
 	PONG                = "pong"
 
