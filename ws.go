@@ -159,22 +159,21 @@ func (ws *WS) run() {
 			logger.Infoln("unregister client: ", client.GetClientId(), client._uuid)
 			close(client.send)
 			c := ws.clientsMgr.getClient(client.GetClientId())
-			if c != nil {
-				if c._uuid != client._uuid {
-					// 旧的已被覆盖掉了,目前存在的可能是最新的连接
-					logger.Infoln(fmt.Sprintf("同一个ClientId的不同连接: %s, %s", c._uuid, client._uuid))
-					return
+			if c == nil || c._uuid == client._uuid {
+				ws.clientsMgr.delClient(client.GetClientId())
+
+				//删除缓存的记录
+				if ws.grpcServer != nil {
+					ws.grpcServer.removeClientCache(client.GetClientId())
 				}
-			}
-			ws.clientsMgr.delClient(client.GetClientId())
 
-			//删除缓存的记录
-			if ws.grpcServer != nil {
-				ws.grpcServer.removeClientCache(client.GetClientId())
+				//触发外部回调函数
+				go ws.postEventHandler(client, EVENT_UNREGISTER)
+			} else {
+				// 旧的已被覆盖掉了,目前存在的可能是最新的连接
+				logger.Infoln(fmt.Sprintf("同一个ClientId的不同连接: %s, %s", c._uuid, client._uuid))
 			}
 
-			//触发外部回调函数
-			go ws.postEventHandler(client, EVENT_UNREGISTER)
 		case msg := <-ws.receiveQueue:
 			//通道队列处理消息
 			logger.Debugf("Receive queue msg: ClientID=%s, BodyType=%d, ProtocolId=%d \n", msg.ClientID, msg.BodyType, msg.ProtocolId)
