@@ -158,6 +158,14 @@ func (ws *WS) run() {
 			//删除客户端连接
 			logger.Infoln("unregister client: ", client.GetClientId(), client._uuid)
 			close(client.send)
+			c := ws.clientsMgr.getClient(client.GetClientId())
+			if c != nil {
+				if c._uuid != client._uuid {
+					// 旧的已被覆盖掉了,目前存在的可能是最新的连接
+					logger.Infoln(fmt.Sprintf("同一个ClientId的不同连接: %s, %s", c._uuid, client._uuid))
+					return
+				}
+			}
 			ws.clientsMgr.delClient(client.GetClientId())
 
 			//删除缓存的记录
