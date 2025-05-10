@@ -3,12 +3,13 @@ package gogowebsocket
 import (
 	"errors"
 	"fmt"
+	"net/http"
+	"time"
+
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/websocket"
 	"github.com/ouyangzhongmin/gogowebsocket/logger"
 	"github.com/ouyangzhongmin/gogowebsocket/timingwheel"
-	"net/http"
-	"time"
 )
 
 const (
@@ -132,7 +133,7 @@ func (ws *WS) run() {
 			return
 		case client := <-ws.register:
 			//注册新的客户端连接
-			logger.Infoln("register client: ", client.GetClientId())
+			logger.Infoln("register client: ", client.GetClientId(), client._uuid)
 			//这里多设备连接需要负载均衡保持同一个ClientId路由到同一台服务器
 			c := ws.clientsMgr.getClient(client.GetClientId())
 			if c != nil {
@@ -155,7 +156,7 @@ func (ws *WS) run() {
 			go ws.postEventHandler(client, EVENT_REGISTER)
 		case client := <-ws.unregister:
 			//删除客户端连接
-			logger.Infoln("unregister client: ", client.GetClientId())
+			logger.Infoln("unregister client: ", client.GetClientId(), client._uuid)
 			close(client.send)
 			ws.clientsMgr.delClient(client.GetClientId())
 

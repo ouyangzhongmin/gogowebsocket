@@ -2,9 +2,11 @@ package gogowebsocket
 
 import (
 	"encoding/json"
+	"time"
+
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/ouyangzhongmin/gogowebsocket/logger"
-	"time"
 )
 
 const (
@@ -29,8 +31,8 @@ type UserInfo interface {
 
 // Client is a middleman between the websocket connection and the hub.
 type Client struct {
-	ws *WS
-
+	ws       *WS
+	_uuid    string
 	userInfo UserInfo
 
 	// The websocket connection.
@@ -47,7 +49,8 @@ type Client struct {
 }
 
 func newClient(userinfo UserInfo, ws *WS, conn *websocket.Conn) *Client {
-	return &Client{userInfo: userinfo, ws: ws, conn: conn, send: make(chan *WSBody, 256), connectedTs: time.Now().Unix()}
+	uid := uuid.New().String()
+	return &Client{_uuid: uid, userInfo: userinfo, ws: ws, conn: conn, send: make(chan *WSBody, 256), connectedTs: time.Now().Unix()}
 }
 
 // readPump pumps messages from the websocket connection to the hub.
