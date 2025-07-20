@@ -110,7 +110,9 @@ func (c *Client) readPump() {
 		} else {
 			//本携程内直接按顺序执行, 开发时需要考虑并发访问问题
 			logger.Debugf("Receive msg: ClientID=%s, BodyType=%d, ProtocolId=%d \n", msg.ClientID, msg.BodyType, msg.ProtocolId)
-			c.ws._doReceiveMessage(msg)
+			go func() {
+				c.ws._doReceiveMessage(msg)
+			}()
 		}
 	}
 }
